@@ -1,5 +1,4 @@
 from django.db import models
-from .category import CATEGORY_CHOICES, LEVEL_CHOICES
 
 
 class User(models.Model):
@@ -28,9 +27,13 @@ class Coords(models.Model):
 
 
 class Level(models.Model):
-    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
-    difficulty_level = models.CharField(max_length=2, choices=LEVEL_CHOICES)
+    winter = models.CharField(max_length=2)
+    summer = models.CharField(max_length=2)
+    autumn = models.CharField(max_length=2)
+    spring = models.CharField(max_length=2)
 
 
-class Image(models.Model):
-    image = models.ImageField(upload_to=None, height_field=None, width_field=None, max_length=100)
+class Images(models.Model):
+    data = models.ImageField()
+    title = models.CharField(max_length=100)
+    pereval = models.ForeignKey('Pereval', on_delete=models.CASCADE)
