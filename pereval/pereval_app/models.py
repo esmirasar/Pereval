@@ -18,6 +18,7 @@ class Pereval(models.Model):
     user = models.ForeignKey('User', on_delete=models.CASCADE)
     coords = models.ForeignKey('Coords', on_delete=models.CASCADE)
     level = models.ForeignKey('Level', on_delete=models.CASCADE)
+    status = models.CharField(max_length=10)
 
 
 class Coords(models.Model):
@@ -36,4 +37,4 @@ class Level(models.Model):
 class Images(models.Model):
     data = models.ImageField()
     title = models.CharField(max_length=100)
-    pereval = models.ForeignKey('Pereval', on_delete=models.CASCADE)
+    pereval = models.ForeignKey('Pereval', on_delete=models.CASCADE, )
