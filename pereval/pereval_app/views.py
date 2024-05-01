@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from rest_framework import views, response
 
-from .models import Pereval, User, Coords, Level
+from .models import Pereval, User, Coords, Level, Images
 from .serializers import (UserSerializer, PerevalSerializer, LevelSerializer,
                           CoordsSerializer, ImagesSerializer)
 from django.core.exceptions import ValidationError
@@ -73,3 +73,20 @@ class SubmitDataView(views.APIView):
                 "status": '500',
                 "message": f'Ошибка в выполнении операции: {e.message}',
             })
+
+
+class SubmitDataDetailView(views.APIView):
+
+    def get(self, request, **kwargs):
+        pk = kwargs.get('pk')
+        instance = Pereval.objects.get(pk=pk)
+
+        instance1 = PerevalSerializer(instance).data
+        instance1['user'] = UserSerializer(instance.user).data
+        instance1['coords'] = CoordsSerializer(instance.coords).data
+        instance1['level'] = LevelSerializer(instance.level).data
+
+        instance_images = Images.objects.filter(pereval=pk)
+        instance1['images'] = ImagesSerializer(instance_images, many=True).data
+
+        return response.Response({'Detail': instance1})

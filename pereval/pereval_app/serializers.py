@@ -19,6 +19,7 @@ class PerevalSerializer(serializers.Serializer):
     other_titles = serializers.CharField(max_length=50)
     connect = serializers.CharField(max_length=50, allow_null=True, allow_blank=True)
     add_time = serializers.DateTimeField()
+    status = serializers.CharField(read_only=True)
     user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
     coords = serializers.PrimaryKeyRelatedField(queryset=Coords.objects.all())
     level = serializers.PrimaryKeyRelatedField(queryset=Level.objects.all())

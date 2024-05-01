@@ -18,7 +18,7 @@ class Pereval(models.Model):
     user = models.ForeignKey('User', on_delete=models.CASCADE)
     coords = models.ForeignKey('Coords', on_delete=models.CASCADE)
     level = models.ForeignKey('Level', on_delete=models.CASCADE)
-    status = models.CharField(max_length=10)
+    status = models.CharField(max_length=10, default="new")
 
 
 class Coords(models.Model):
