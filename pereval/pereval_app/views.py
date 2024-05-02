@@ -79,6 +79,10 @@ class SubmitDataDetailView(views.APIView):
 
     def get(self, request, **kwargs):
         pk = kwargs.get('pk')
+
+        if not pk:
+            return response.Response({'Ошибка': 'Нет id страницы'})
+
         instance = Pereval.objects.get(pk=pk)
 
         instance1 = PerevalSerializer(instance).data
@@ -90,3 +94,38 @@ class SubmitDataDetailView(views.APIView):
         instance1['images'] = ImagesSerializer(instance_images, many=True).data
 
         return response.Response({'Detail': instance1})
+
+    def patch(self, request, *args, **kwargs):
+
+        pk = kwargs.get('pk')
+
+        if not pk:
+            return response.Response({'Ошибка': 'Нет id страницы'})
+
+        instance = Pereval.objects.get(pk=pk)
+
+        if not request.data:
+            return response.Response({'Ошибка': 'Нет данных для изменений'})
+
+        if instance.status != 'new':
+            return response.Response({'Ошибка': 'Запись находится в статусе, при котором изменение недоступно'})
+
+        del request.data['user']
+        request_level = request.data.pop('level')
+        request_coords = request.data.pop('coords')
+
+        serializer_pereval = PerevalSerializer(data=request.data, instance=instance, partial=True)
+        serializer_pereval.is_valid(raise_exception=True)
+        serializer_pereval.save()
+
+        instance = Coords.objects.get(pereval=pk)
+        serializer_coords = CoordsSerializer(data=request_coords, instance=instance, partial=True)
+        serializer_coords.is_valid()
+        serializer_coords.save()
+
+        instance = Level.objects.get(pereval=pk)
+        serilizer_level = LevelSerializer(data=request_level, instance=instance, partial=True)
+        serilizer_level.is_valid()
+        serilizer_level.save()
+
+        return response.Response({'Успешно': 'Данные изменены'})

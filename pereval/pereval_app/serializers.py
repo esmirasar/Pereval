@@ -27,6 +27,14 @@ class PerevalSerializer(serializers.Serializer):
     def create(self, validated_data):
         return Pereval.objects.create(**validated_data)
 
+    def update(self, instance, validated_data):
+        instance.beauty_title = validated_data.get('beauty_title', instance.beauty_title)
+        instance.title = validated_data.get('title', instance.title)
+        instance.other_titles = validated_data.get('other_titles', instance.other_titles)
+        instance.connect = validated_data.get('connect', instance.connect)
+        instance.save()
+        return instance
+
 
 class CoordsSerializer(serializers.Serializer):
     latitude = serializers.FloatField()
@@ -35,6 +43,13 @@ class CoordsSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         return Coords.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        instance.latitude = validated_data.get('latitude', instance.latitude)
+        instance.longitude = validated_data.get('longitude', instance.longitude)
+        instance.height = validated_data.get('height', instance.height)
+        instance.save()
+        return instance
 
 
 class LevelSerializer(serializers.Serializer):
@@ -45,6 +60,14 @@ class LevelSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         return Level.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        instance.winter = validated_data.get('winter', instance.winter)
+        instance.summer = validated_data.get('summer', instance.summer)
+        instance.autumn = validated_data.get('autumn', instance.autumn)
+        instance.spring = validated_data.get('spring', instance.spring)
+        instance.save()
+        return instance
 
 
 class ImagesSerializer(serializers.Serializer):
