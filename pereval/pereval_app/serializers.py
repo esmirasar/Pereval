@@ -77,3 +77,9 @@ class ImagesSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         return Images.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        instance.data = validated_data.get('data', instance.data)
+        instance.title = validated_data.get('title', instance.title)
+        instance.save()
+        return instance

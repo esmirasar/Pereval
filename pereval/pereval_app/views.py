@@ -49,12 +49,8 @@ class SubmitDataView(views.APIView):
             pereval_validator.save()
 
             images = data.pop('images')
-            for i in images:
-                i['pereval'] = Pereval.objects.last().pk
-                images_validator = ImagesSerializer(data=i)
-                images_validator.is_valid(raise_exception=True)
-
             for image in images:
+                image['pereval'] = Pereval.objects.last().pk
                 images_validator = ImagesSerializer(data=image)
                 images_validator.is_valid(raise_exception=True)
                 images_validator.save()
@@ -100,15 +96,18 @@ class SubmitDataDetailView(views.APIView):
         pk = kwargs.get('pk')
 
         if not pk:
-            return response.Response({'Ошибка': 'Нет id страницы'})
+            return response.Response({'state': 0,
+                                      'message': 'Нет id страницы'})
 
         instance = Pereval.objects.get(pk=pk)
 
         if not request.data:
-            return response.Response({'Ошибка': 'Нет данных для изменений'})
+            return response.Response({'state': 0,
+                                      'message': 'Нет данных для изменений'})
 
         if instance.status != 'new':
-            return response.Response({'Ошибка': 'Запись находится в статусе, при котором изменение недоступно'})
+            return response.Response({'state': 0,
+                                      'message': 'Запись находится в статусе, при котором изменение недоступно'})
 
         del request.data['user']
         request_level = request.data.pop('level')
@@ -128,4 +127,20 @@ class SubmitDataDetailView(views.APIView):
         serilizer_level.is_valid()
         serilizer_level.save()
 
-        return response.Response({'Успешно': 'Данные изменены'})
+        instance = Images.objects.filter(pereval=pk)
+        images = request.data.pop('images')
+
+        if len(instance) < len(images):
+            return response.Response(
+                {'state': 0,
+                 'message': 'Количество введенных данных не должно превышать количество имеющихся фотографий'})
+
+        for i, image in enumerate(images):
+            for j, instanc in enumerate(instance):
+                if image == instanc:
+                    images_validator = ImagesSerializer(data=image, instance=instanc, partial=True)
+                    images_validator.is_valid(raise_exception=True)
+                    images_validator.save()
+
+        return response.Response({'state': 1,
+                                  'message': 'Данные изменены'})
