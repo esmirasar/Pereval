@@ -8,18 +8,28 @@ from django.core.exceptions import ValidationError
 
 
 class SubmitDataView(views.APIView):
+    def get(self, request):
+
+        instance = User.objects.get(email=request.GET['user__email'])
+        pk = instance.id
+        list_pereval = Pereval.objects.filter(user_id=pk)
+        serializer_per = PerevalSerializer(list_pereval, many=True).data
+        return response.Response({'Список': serializer_per})
+
     def post(self, request, *args, **kwargs):
         try:
             data = request.data
             user = data.pop('user')
+            print(user)
             required_user_fields = {'email', 'fam', 'name', 'otc', 'phone'}
             if not all(field in user for field in required_user_fields):
                 raise KeyError('user')
             if User.objects.filter(email=user['email']):
-                raise ValidationError(message='email')
-            user_validator = UserSerializer(data=user)
-            user_validator.is_valid(raise_exception=True)
-            user_validator.save()
+                user = User.objects.get(email=user['email']).pk
+            else:
+                user_validator = UserSerializer(data=user)
+                user_validator.is_valid(raise_exception=True)
+                user_validator.save()
 
             coords = data.pop('coords')
             required_coords_field = {'latitude', 'longitude', 'height'}
@@ -38,7 +48,10 @@ class SubmitDataView(views.APIView):
             level_validator.save()
 
             pereval = data
-            pereval['user'] = User.objects.last().pk
+            if type(user) is dict:
+                pereval['user'] = User.objects.last().pk
+            else:
+                pereval['user'] = user
             pereval['coords'] = Coords.objects.last().pk
             pereval['level'] = Level.objects.last().pk
             required_pereval_field = {'beauty_title', 'title', 'other_titles', 'connect', 'add_time'}
