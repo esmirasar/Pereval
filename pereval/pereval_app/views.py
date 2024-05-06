@@ -1,4 +1,5 @@
 from django.shortcuts import render
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiRequest
 from rest_framework import views, response
 
 from .models import Pereval, User, Coords, Level, Images
@@ -8,6 +9,10 @@ from django.core.exceptions import ValidationError
 
 
 class SubmitDataView(views.APIView):
+
+    def serializer_class(self):
+        return PerevalSerializer()
+
     def get(self, request):
 
         instance = User.objects.get(email=request.GET['user__email'])
@@ -85,6 +90,9 @@ class SubmitDataView(views.APIView):
 
 
 class SubmitDataDetailView(views.APIView):
+
+    def serializer_class(self):
+        return PerevalSerializer()
 
     def get(self, request, **kwargs):
         pk = kwargs.get('pk')
