@@ -1,25 +1,40 @@
 from django.shortcuts import render
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiRequest
 from rest_framework import views, response
 
-from .models import Pereval, User, Coords, Level
+from .models import Pereval, User, Coords, Level, Images
 from .serializers import (UserSerializer, PerevalSerializer, LevelSerializer,
                           CoordsSerializer, ImagesSerializer)
 from django.core.exceptions import ValidationError
 
 
 class SubmitDataView(views.APIView):
+
+    def serializer_class(self):
+        return PerevalSerializer()
+
+    def get(self, request):
+
+        instance = User.objects.get(email=request.GET['user__email'])
+        pk = instance.id
+        list_pereval = Pereval.objects.filter(user_id=pk)
+        serializer_per = PerevalSerializer(list_pereval, many=True).data
+        return response.Response({'Список': serializer_per})
+
     def post(self, request, *args, **kwargs):
         try:
             data = request.data
             user = data.pop('user')
+            print(user)
             required_user_fields = {'email', 'fam', 'name', 'otc', 'phone'}
             if not all(field in user for field in required_user_fields):
                 raise KeyError('user')
             if User.objects.filter(email=user['email']):
-                raise ValidationError(message='email')
-            user_validator = UserSerializer(data=user)
-            user_validator.is_valid(raise_exception=True)
-            user_validator.save()
+                user = User.objects.get(email=user['email']).pk
+            else:
+                user_validator = UserSerializer(data=user)
+                user_validator.is_valid(raise_exception=True)
+                user_validator.save()
 
             coords = data.pop('coords')
             required_coords_field = {'latitude', 'longitude', 'height'}
@@ -38,7 +53,10 @@ class SubmitDataView(views.APIView):
             level_validator.save()
 
             pereval = data
-            pereval['user'] = User.objects.last().pk
+            if type(user) is dict:
+                pereval['user'] = User.objects.last().pk
+            else:
+                pereval['user'] = user
             pereval['coords'] = Coords.objects.last().pk
             pereval['level'] = Level.objects.last().pk
             required_pereval_field = {'beauty_title', 'title', 'other_titles', 'connect', 'add_time'}
@@ -49,12 +67,8 @@ class SubmitDataView(views.APIView):
             pereval_validator.save()
 
             images = data.pop('images')
-            for i in images:
-                i['pereval'] = Pereval.objects.last().pk
-                images_validator = ImagesSerializer(data=i)
-                images_validator.is_valid(raise_exception=True)
-
             for image in images:
+                image['pereval'] = Pereval.objects.last().pk
                 images_validator = ImagesSerializer(data=image)
                 images_validator.is_valid(raise_exception=True)
                 images_validator.save()
@@ -73,3 +87,81 @@ class SubmitDataView(views.APIView):
                 "status": '500',
                 "message": f'Ошибка в выполнении операции: {e.message}',
             })
+
+
+class SubmitDataDetailView(views.APIView):
+
+    def serializer_class(self):
+        return PerevalSerializer()
+
+    def get(self, request, **kwargs):
+        pk = kwargs.get('pk')
+
+        if not pk:
+            return response.Response({'Ошибка': 'Нет id страницы'})
+
+        instance = Pereval.objects.get(pk=pk)
+
+        instance1 = PerevalSerializer(instance).data
+        instance1['user'] = UserSerializer(instance.user).data
+        instance1['coords'] = CoordsSerializer(instance.coords).data
+        instance1['level'] = LevelSerializer(instance.level).data
+
+        instance_images = Images.objects.filter(pereval=pk)
+        instance1['images'] = ImagesSerializer(instance_images, many=True).data
+
+        return response.Response({'Detail': instance1})
+
+    def patch(self, request, *args, **kwargs):
+
+        pk = kwargs.get('pk')
+
+        if not pk:
+            return response.Response({'state': 0,
+                                      'message': 'Нет id страницы'})
+
+        instance = Pereval.objects.get(pk=pk)
+
+        if not request.data:
+            return response.Response({'state': 0,
+                                      'message': 'Нет данных для изменений'})
+
+        if instance.status != 'new':
+            return response.Response({'state': 0,
+                                      'message': 'Запись находится в статусе, при котором изменение недоступно'})
+
+        del request.data['user']
+        request_level = request.data.pop('level')
+        request_coords = request.data.pop('coords')
+
+        serializer_pereval = PerevalSerializer(data=request.data, instance=instance, partial=True)
+        serializer_pereval.is_valid(raise_exception=True)
+        serializer_pereval.save()
+
+        instance = Coords.objects.get(pereval=pk)
+        serializer_coords = CoordsSerializer(data=request_coords, instance=instance, partial=True)
+        serializer_coords.is_valid()
+        serializer_coords.save()
+
+        instance = Level.objects.get(pereval=pk)
+        serilizer_level = LevelSerializer(data=request_level, instance=instance, partial=True)
+        serilizer_level.is_valid()
+        serilizer_level.save()
+
+        instance = Images.objects.filter(pereval=pk)
+        images = request.data.pop('images')
+
+        if len(instance) < len(images):
+            return response.Response(
+                {'state': 0,
+                 'message': 'Количество введенных данных не должно превышать количество имеющихся фотографий'})
+
+        for i, image in enumerate(images):
+            for j, instanc in enumerate(instance):
+                if image == instanc:
+                    images_validator = ImagesSerializer(data=image, instance=instanc, partial=True)
+                    images_validator.is_valid(raise_exception=True)
+                    images_validator.save()
+
+        return response.Response({'state': 1,
+                                  'message': 'Данные изменены'})
