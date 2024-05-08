@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiRequest
-from rest_framework import views, response
+from rest_framework import views, response, status
 
 from .models import Pereval, User, Coords, Level, Images
 from .serializers import (UserSerializer, PerevalSerializer, LevelSerializer,
@@ -9,23 +9,30 @@ from django.core.exceptions import ValidationError
 
 
 class SubmitDataView(views.APIView):
+    """serializer_class для корректной работы swagger"""
 
     def serializer_class(self):
         return PerevalSerializer()
 
-    def get(self, request):
+    """ метод get ля вывода записей, отправленных с user__email"""
 
-        instance = User.objects.get(email=request.GET['user__email'])
+    def get(self, request):
+        try:
+            instance = User.objects.get(email=request.GET['user__email'])
+        except:
+            return response.Response({'Ошибка': 'Строка email'}, status=status.HTTP_400_BAD_REQUEST)
+        instance_user = User.objects.filter().values('email')
         pk = instance.id
         list_pereval = Pereval.objects.filter(user_id=pk)
         serializer_per = PerevalSerializer(list_pereval, many=True).data
-        return response.Response({'Список': serializer_per})
+        return response.Response({'Список': serializer_per}, status=status.HTTP_200_OK)
+
+    """метод post для отправки записи"""
 
     def post(self, request, *args, **kwargs):
         try:
             data = request.data
             user = data.pop('user')
-            print(user)
             required_user_fields = {'email', 'fam', 'name', 'otc', 'phone'}
             if not all(field in user for field in required_user_fields):
                 raise KeyError('user')
@@ -63,7 +70,7 @@ class SubmitDataView(views.APIView):
             if not all(field_p in pereval for field_p in required_pereval_field):
                 raise KeyError('pereval')
             pereval_validator = PerevalSerializer(data=pereval)
-            pereval_validator.is_valid(raise_exception=True)
+            pereval_validator.is_valid()
             pereval_validator.save()
 
             images = data.pop('images')
@@ -75,18 +82,17 @@ class SubmitDataView(views.APIView):
 
             return response.Response({"status": '200',
                                       "message": 'Отправлено успешно',
-                                      "id": Pereval.objects.last().id})
+                                      "id": Pereval.objects.last().id}, status=status.HTTP_200_OK)
         except KeyError as e:
             return response.Response({
                 "status": '400',
                 "message": f'Отсутствует одно из обязательных полей: {e.args[0]}',
-            })
+            }, status=status.HTTP_400_BAD_REQUEST)
 
-        except ValidationError as e:
+        except AssertionError as e:
             return response.Response({
                 "status": '500',
-                "message": f'Ошибка в выполнении операции: {e.message}',
-            })
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class SubmitDataDetailView(views.APIView):
@@ -94,13 +100,14 @@ class SubmitDataDetailView(views.APIView):
     def serializer_class(self):
         return PerevalSerializer()
 
+    """метод get для вывода детальной информации"""
+
     def get(self, request, **kwargs):
         pk = kwargs.get('pk')
-
-        if not pk:
-            return response.Response({'Ошибка': 'Нет id страницы'})
-
-        instance = Pereval.objects.get(pk=pk)
+        try:
+            instance = Pereval.objects.get(pk=pk)
+        except:
+            return response.Response({'Ошибка': 'Нет id страницы'}, status=status.HTTP_400_BAD_REQUEST)
 
         instance1 = PerevalSerializer(instance).data
         instance1['user'] = UserSerializer(instance.user).data
@@ -110,27 +117,30 @@ class SubmitDataDetailView(views.APIView):
         instance_images = Images.objects.filter(pereval=pk)
         instance1['images'] = ImagesSerializer(instance_images, many=True).data
 
-        return response.Response({'Detail': instance1})
+        return response.Response({'Detail': instance1}, status=status.HTTP_200_OK)
+
+    """метод patch для изменения записи"""
 
     def patch(self, request, *args, **kwargs):
 
         pk = kwargs.get('pk')
 
-        if not pk:
+        try:
+            instance = Pereval.objects.get(pk=pk)
+        except:
             return response.Response({'state': 0,
-                                      'message': 'Нет id страницы'})
-
-        instance = Pereval.objects.get(pk=pk)
+                                      'message': 'Нет id страницы'}, status=status.HTTP_400_BAD_REQUEST)
 
         if not request.data:
             return response.Response({'state': 0,
-                                      'message': 'Нет данных для изменений'})
+                                      'message': 'Нет данных для изменений'}, status=status.HTTP_400_BAD_REQUEST)
 
         if instance.status != 'new':
             return response.Response({'state': 0,
-                                      'message': 'Запись находится в статусе, при котором изменение недоступно'})
-
-        del request.data['user']
+                                      'message': 'Запись находится в статусе, при котором изменение недоступно'},
+                                     status=status.HTTP_400_BAD_REQUEST)
+        if request.data.get('user'):
+            del request.data['user']
         request_level = request.data.pop('level')
         request_coords = request.data.pop('coords')
 
@@ -149,19 +159,21 @@ class SubmitDataDetailView(views.APIView):
         serilizer_level.save()
 
         instance = Images.objects.filter(pereval=pk)
-        images = request.data.pop('images')
+        if request.data.get('images'):
+            images = request.data.pop('images')
 
-        if len(instance) < len(images):
-            return response.Response(
-                {'state': 0,
-                 'message': 'Количество введенных данных не должно превышать количество имеющихся фотографий'})
+            if len(instance) < len(images):
+                return response.Response(
+                    {'state': 0,
+                     'message': 'Количество введенных данных не должно превышать количество имеющихся фотографий'},
+                    status=status.HTTP_400_BAD_REQUEST)
 
-        for i, image in enumerate(images):
-            for j, instanc in enumerate(instance):
-                if image == instanc:
-                    images_validator = ImagesSerializer(data=image, instance=instanc, partial=True)
-                    images_validator.is_valid(raise_exception=True)
-                    images_validator.save()
+            for i, image in enumerate(images):
+                for j, instanc in enumerate(instance):
+                    if image == instanc:
+                        images_validator = ImagesSerializer(data=image, instance=instanc, partial=True)
+                        images_validator.is_valid(raise_exception=True)
+                        images_validator.save()
 
         return response.Response({'state': 1,
-                                  'message': 'Данные изменены'})
+                                  'message': 'Данные изменены'}, status=status.HTTP_200_OK)
